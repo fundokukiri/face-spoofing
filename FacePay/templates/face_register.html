@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+    <html lang="vi" >
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title> FacePay</title>
+        <link rel="icon" type="image/x-icon" href="../static/images/icon.png">
+        <link rel="stylesheet" href="../static/css/face_register.css">
+                                        
+    </head>
+    <body>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for cat, mess in messages %}
+                {% if cat == "error" %}
+                {% if mess == "Thêm khuôn mặt thành công!" %}
+                <script>
+                    location.replace("/account")
+                </script>
+                {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+        <div class="container_checkout">
+            <div class="circular-progress">
+                <img src="{{url_for('views.video_feed_register')}}" width="100%">
+                <!-- <img src="../Data/ArcFace/1/temp.jpg" alt=""> -->
+            </div>
+            <span class="text">Face Register</span>
+            <button onclick="redirect_to_account_page()"  class="btn_back_account">
+                Trở về account page
+            </button>
+        </div>
+        <script src="../static/js/face_register.js"></script>
+    </body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vn">
+
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Facepay Service</title>
+	
+	<link rel="icon" type="image/x-icon" href="../static/images/icon.png">
+	<link rel="stylesheet" href="https://unpkg.com/swiper/swiper-bundle.min.css">
+	<link href='https://unpkg.com/boxicons@2.0.9/css/boxicons.min.css' rel='stylesheet'>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta2/css/all.min.css">
+	<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet" />
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+	<link rel="stylesheet" href="../static/css/base.css">
+
+</head>
+
+<body>
+	<!-- ###HEADER-SLIDER -->
+	<header>
+		<a href="/" class="logo"><i class="fas fa-shop"></i>UTEStore.</a>
+		<nav class="navbar">
+			<a href="#hot-deal">Siêu Ưu Đãi</a>
+			<a href="#new-product">Sản Phẩm Mới</a>
+			<a href="#menu-product">Sản Phẩm Phổ Biến</a>
+		</nav>
+		<div class="icons">
+			<i class="fas fa-bars" id="menu-bars"></i>
+			<span class="total-item-round">0</span>
+			<!-- <i class="far fa-user-circle" id="user-icon"></i> -->
+			<ul>
+				<i class="fas fa-shopping-bag" id="cart-icon"></i>
+				<li>
+					{% if user.is_authenticated %}
+						{% if avatar %}
+                		<img id="avatar" style="cursor: pointer;" class="profile" src="{{avatar}}" alt="profile" />
+
+						<!-- <img src="{{avatar}}" class="profile" id="user-icon" /> -->
+						{% else %}
+						<!-- <img src="../static/images/avatar_default.jpg" class="profile" id="user-icon" /> -->
+						<i class="far fa-user-circle" id="user-icon"></i>
+						{% endif %}
+						<script>
+							
+							let icon = document.getElementById("user-icon");
+							icon.style.backgroundColor = "#70ff9f"
+							// icon.style.border = "0.05rem solid rgba(0, 255, 26, 0.5)";
+						</script>
+						{% else %}
+						<i class="far fa-user-circle" id="user-icon"></i>
+					{% endif %}
+					<ul>
+						<!-- <li class="sub-item" onclick="redirect_to_home_page()">
+							<span class="material-icons-outlined"> grid_view </span>
+							<p id="click-to-home">Home</p>
+						</li> -->
+						{% if user.is_authenticated %}
+						<li class="sub-item" onclick="redirect_to_account_page()">
+							<span class="material-icons-outlined"> manage_accounts </span>
+							<p>Tài khoản</p>
+						</li>
+						<li class="sub-item" onclick="redirect_to_logout_page()">
+							<span class="material-icons-outlined"> logout </span>
+							<p>Đăng xuất</p>
+						</li>
+						{% else %}
+						<li class="sub-item" onclick="redirect_to_signup_page()">
+							<span class="material-icons-outlined"> person_add </span>
+							<p>Đăng ký</p>
+						</li>
+						<li class="sub-item" onclick="redirect_to_login_page()">
+							<span class="material-icons-outlined"> login </span>
+							<p>Đăng nhập</p>
+						</li>
+						{% endif %}
+					</ul>
+				</li>
+			</ul>
+		</div>
+	<div class="toast" id="toast_checkout">
+        <div class="toast-content" >
+            <i class="fas fa-solid fa-check check" style="background-color:rgb(0, 132, 0) ;" id="icon_checkout"></i>
+                <div class="message">
+                    <span id="toast_text_1" class="text text-2"></span>
+                    <span id="toast_text_2" class="text text-2"></span>
+                </div>
+            </div>
+            <i class="fa-solid fa-xmark close"></i>
+        <div class="progress"></div>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for cat, mess in messages %}
+            {% if cat == "error" %}
+                {% if mess == "Thanh toán thành công!" %}
+                    <script>
+                        function Toast1(){
+                            document.getElementById("icon_checkout").style.backgroundColor = "rgb(0, 132, 0)"
+                            document.getElementById('toast_text_1').innerHTML = 'Thanh Toán Thành Công !';
+                            const toast = document.getElementById("toast_checkout")
+                                closeIcon = document.querySelector(".close"),
+                                progress = document.querySelector(".progress");
+                                let timer1, timer2;
+                                    
+                                toast.classList.add("active");
+                                progress.classList.add("active");
+    
+                                timer1 = setTimeout(() => {
+                                    toast.classList.remove("active");
+                                }, 5000); //1s = 1000 milliseconds
+    
+                                timer2 = setTimeout(() => {
+                                progress.classList.remove("active");
+                                }, 5300);
+    
+                                closeIcon.addEventListener("click", () => {
+                                toast.classList.remove("active");
+                                
+                                setTimeout(() => {
+                                progress.classList.remove("active");
+                                }, 300);
+    
+                                clearTimeout(timer1);
+                                clearTimeout(timer2);
+                            });}
+                            Toast1()
+                	</script>
+                    {% endif %}
+                {% if mess == "Thanh toán thất bại! Số dư không đủ!" %}
+                    <script>
+                        function Toast1(){
+                            document.getElementById("icon_checkout").style.backgroundColor = "rgb(255, 0, 0)"
+                            document.getElementById('toast_text_1').innerHTML = 'Số dư không đủ!';
+                            const toast = document.getElementById("toast_checkout")
+                                closeIcon = document.querySelector(".close"),
+                                progress = document.querySelector(".progress");
+                                let timer1, timer2;
+                                    
+                                toast.classList.add("active");
+                                progress.classList.add("active");
+    
+                                timer1 = setTimeout(() => {
+                                    toast.classList.remove("active");
+                                }, 5000); //1s = 1000 milliseconds
+    
+                                timer2 = setTimeout(() => {
+                                progress.classList.remove("active");
+                                }, 5300);
+    
+                                closeIcon.addEventListener("click", () => {
+                                toast.classList.remove("active");
+                                
+                                setTimeout(() => {
+                                progress.classList.remove("active");
+                                }, 300);
+    
+                                clearTimeout(timer1);
+                                clearTimeout(timer2);
+                            });}
+                            Toast1()
+                	</script>
+                    {% endif %}
+                {% if mess == "Thanh toán thất bại!" %}
+                    <script>
+                        function Toast1(){
+                            document.getElementById("icon_checkout").style.backgroundColor = "rgb(255, 0, 0)"
+                            document.getElementById('toast_text_1').innerHTML = 'Thanh toán thất bại! ';
+                            document.getElementById('toast_text_2').innerHTML = 'Không tìm thấy người dùng ! ';
+                            const toast = document.getElementById("toast_checkout")
+                                closeIcon = document.querySelector(".close"),
+                                progress = document.querySelector(".progress");
+                                let timer1, timer2;
+                                    
+                                toast.classList.add("active");
+                                progress.classList.add("active");
+    
+                                timer1 = setTimeout(() => {
+                                    toast.classList.remove("active");
+                                }, 5000); //1s = 1000 milliseconds
+    
+                                timer2 = setTimeout(() => {
+                                progress.classList.remove("active");
+                                }, 5300);
+    
+                                closeIcon.addEventListener("click", () => {
+                                toast.classList.remove("active");
+                                
+                                setTimeout(() => {
+                                progress.classList.remove("active");
+                                }, 300);
+    
+                                clearTimeout(timer1);
+                                clearTimeout(timer2);
+                            });}
+                            Toast1()
+                	</script>
+                    {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+	</header>
+	
+	{% block content %}
+	
+	{% endblock %}
+
+	<script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
+	<script src="../static/js/base.js"></script>
+</body>
+
+</html>

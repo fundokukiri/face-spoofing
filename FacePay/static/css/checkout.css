@@ -1,0 +1,65 @@
+/* Google Fonts - Poppins */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+body{
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+}
+.container_checkout{
+    display: flex;
+    width: 520px;
+    height: 620px;
+    padding: 20px 0;
+    border-radius: 8px;
+    background: #eee;
+    row-gap: 30px;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 5px 10px rgba(0,0,0,0.9);
+}
+.circular-progress{
+    position: relative;
+    height: 450px;
+    width: 400px;
+    border-radius: 50%;
+    /* background: conic-gradient(#7d2ae8 3.6deg, #ededed 0deg); */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.circular-progress img{
+    height: 430px;
+    width: 380px;
+    border-radius: 50%;
+}
+
+.circular-progress::before{
+    content: "";
+    position: absolute;
+    height: 480px;
+    width: 450px;
+    border-radius: 15px;
+    border-radius: 50%;
+    /* background-color: #fff; */
+}
+.progress-value{
+    position: relative;
+    font-size: 40px;
+    font-weight: 600;
+    color: #2ae837;
+}
+.text{
+    font-size: 30px;
+    font-weight: 500;
+    color: #606060;
+}

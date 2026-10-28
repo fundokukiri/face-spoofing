@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %} Signup {% endblock %}
+
+{% block content %}
+<form action="/sign_up" id="sign-up-form" method="post">
+    <div class="toast" id="toast_sign_up">
+        <div class="toast-content">
+            <i class="fas fa-solid fa-exclamation-triangle check"></i>
+                <div class="message">
+                    <span id="toast_text_1" class="text text-1">Đăng ký không thành công !</span>
+                    <span id="toast_text_2" class="text text-2"></span>
+                </div>
+            </div>
+            <i class="fa-solid fa-xmark close"></i>
+        <div class="progress"></div>
+    </div>
+
+    <div class="popup" id="sign-up">
+        <div class="form">
+            <label>
+                <h2><a class="logo"><i style="color:var(--green) ;" class="fas fa-shop"></i><b>UTEStore.</b></a></h2>
+            </label>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for cat, mess in messages %}
+                        {% if cat == "error" %}
+                            {% if mess == "Tài khoản đã tồn tại!" %}
+                                <script>
+                                    function Toast1(){
+                                        document.getElementById('toast_text_2').innerHTML = 'Tài khoản đã tồn tại';
+                                        const toast = document.getElementById("toast_sign_up")
+                                            closeIcon = document.querySelector(".close"),
+                                            progress = document.querySelector(".progress");
+                                            let timer1, timer2;
+                                                
+                                            toast.classList.add("active");
+                                            progress.classList.add("active");
+
+                                            timer1 = setTimeout(() => {
+                                                toast.classList.remove("active");
+                                            }, 5000); //1s = 1000 milliseconds
+
+                                            timer2 = setTimeout(() => {
+                                            progress.classList.remove("active");
+                                            }, 5300);
+
+                                            closeIcon.addEventListener("click", () => {
+                                            toast.classList.remove("active");
+                                            
+                                            setTimeout(() => {
+                                            progress.classList.remove("active");
+                                            }, 300);
+
+                                            clearTimeout(timer1);
+                                            clearTimeout(timer2);
+                                        });}
+                                        Toast1()
+                                </script>
+                                {% endif%}
+                                {% if mess == "Mật khẩu không khớp!" %}
+                                <script>
+                                    function Toast2(){
+                                        document.getElementById('toast_text_2').innerHTML = 'Mật khẩu không khớp';
+                                        const toast = document.getElementById("toast_sign_up")
+                                            closeIcon = document.querySelector(".close"),
+                                            progress = document.querySelector(".progress");
+                                            let timer1, timer2;
+                                                
+                                            toast.classList.add("active");
+                                            progress.classList.add("active");
+
+                                            timer1 = setTimeout(() => {
+                                                toast.classList.remove("active");
+                                            }, 5000); //1s = 1000 milliseconds
+
+                                            timer2 = setTimeout(() => {
+                                            progress.classList.remove("active");
+                                            }, 5300);
+
+                                            closeIcon.addEventListener("click", () => {
+                                            toast.classList.remove("active");
+                                            
+                                            setTimeout(() => {
+                                            progress.classList.remove("active");
+                                            }, 300);
+
+                                            clearTimeout(timer1);
+                                            clearTimeout(timer2);
+                                        });}
+                                    Toast2()
+                                </script>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            <div class="form-element">
+                <input type="text" name="name" id="name" placeholder="Họ tên" required>
+            </div>
+            <div class="form-element">
+                <input type="text" name="birthday" placeholder="Ngày sinh" onfocus="(this.type='date')" onblur="(this.type='text')" required>
+            </div>
+            <div class="form-element">
+                <select name="gender" class="form-select mt-3" id="dropdown" required>
+                    <option selected disabled value="">Giới tính</option>
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                </select>
+            </div>
+            <div class="form-element">
+                <input type="text" name="address" placeholder="Địa chỉ" required>
+            </div>
+            <div class="form-element">
+                <input type="text" name="id-card" placeholder="CCCD" required>
+            </div>
+            <div class="form-element">
+                <input type="text" name="phone" id="phone" placeholder="Số điện thoại" required>
+            </div>
+            <div class="form-element">
+                <input type="email" name="email" id="email" placeholder="E-mail" required>
+            </div>
+            <div class="form-element">
+                <input type="password" name="password" id="password" minlength="8" placeholder="Mật khẩu" required>
+            </div>
+            <div class="form-element">
+                <input  type="password" name="comfirm-password" id="comfirm_password" placeholder="Xác nhận mật khẩu" required>
+            </div>
+            <div class="form-element">
+                <input id="sign-up" type="submit" name="sign-up" value="Đăng Ký"></input>
+            </div>
+            <div class="form-element">
+                <a href="/sign_in" id="click-to-sign-in">Đã có tài khoản? <b>Đăng nhập</b></a>
+            </div>
+        </div>
+    </div>
+    <a href="/" class="fas fa-times" id="close-sign-up"></a>
+</form>
+
+{% endblock %}

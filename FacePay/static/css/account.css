@@ -1,0 +1,10 @@
+svg{
+    cursor: pointer;
+}
+
+.xbtn{
+    margin-left: 45px; 
+}
+.xbtn button:hover{
+    background-color: aqua;
+}
