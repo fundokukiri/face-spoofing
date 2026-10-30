@@ -51,17 +51,18 @@ FacePay/
 
 ### High-Level Architecture
 
-The system follows a modular pipeline architecture with three main layers:
+The system follows a modular pipeline architecture with four main layers:
 
 **Presentation Layer (Flask Web Application)**
 - Jinja2 templates render HTML pages
 - MJPEG video streaming via Flask Response objects
 - Blueprint-based routing (views, users)
 - Session management with Flask-Login
+- Flash messages for user feedback
 
 **Business Logic Layer (func.py)**
 - Orchestrates the computer vision pipeline
-- Loads and manages ML models at startup (FaceNet, SVM, ArcFace, Anti-Spoofing)
+- Loads and manages ML models at module import time (FaceNet, SVM, ArcFace, Anti-Spoofing)
 - Provides stateless functions for detection, recognition, and liveness checking
 - Handles thresholds and decision logic
 
@@ -72,9 +73,9 @@ The system follows a modular pipeline architecture with three main layers:
 - Utilities: Face extraction with margin, visualization helpers
 
 **Data Layer (SQLite + File System)**
-- SQLite database for users, transactions, sign-in history
+- SQLite database (facepay.db) for users, transactions, sign-in history
 - File-based storage for training images (FaceNet) and reference images (ArcFace)
-- Model weights stored as .pb, .onnx, .pkl files
+- Model weights stored as .pb, .onnx, .pkl files in FacePay/Models/
 
 ### Data Flow: Checkout (Payment) Pipeline
 
@@ -89,13 +90,18 @@ Client loads checkout.html → requests /video_feed (MJPEG stream)
          │
          ▼
 gen_frames_checkout() runs continuous loop:
-  1. Camera capture (cv2.VideoCapture)
+  1. Camera capture (cv2.VideoCapture with CAP_DSHOW)
   2. Face Detection (MediaPipe FaceMesh) → face crops + bounding boxes
   3. Anti-Spoofing per face (ONNX model) → REAL/FAKE score
-  4. If REAL: Face Recognition
+     - Label 0 (Real): score > threshold → GREEN box
+     - Label 0 (Real): score <= threshold → YELLOW box (unknown)
+     - Label 1 (Fake): RED box
+  4. If REAL (score > threshold): Face Recognition
        a. FaceNet embedding (TF1 graph) → 512-d vector
        b. SVM classifier → predicted user + probability
-       c. If prob > 0.6: optional ArcFace verification
+       c. If prob > 0.6 AND liveness score > threshold:
+            - If ArcFaceActivate: compare with ArcFace reference
+            - Return user ID or "0" (unknown)
   5. Visualization overlay on frame
   6. Encode JPEG → yield MJPEG chunk
          │
@@ -103,13 +109,15 @@ gen_frames_checkout() runs continuous loop:
 Browser displays live video with overlays
          │
          ▼
-When recognition succeeds (recognize_id set globally):
-  Home route (/) detects recognize_id + money > 0
-  → Validates user exists + sufficient balance
-  → Deducts currency, creates PurchaseHistory record
-  → Flash success message
-  → Resets global state (recognize_id, money, data_cart)
+Home route (/) polls on each request:
+  - Checks global recognize_id + money > 0
+  - Validates user exists + sufficient balance
+  - Deducts currency, creates PurchaseHistory record
+  - Flash success message
+  - Resets global state (recognize_id, money, data_cart)
 ```
+
+**Note on Global State**: `views.py` uses module-level globals (`money`, `data_cart`, `recognize_id`, `current_id`) to pass state between the video stream generator and the home route. This works for a single-user demo but is not thread-safe for production.
 
 ### Data Flow: Face Registration Pipeline
 
@@ -123,21 +131,26 @@ Client loads face_register.html → requests /video_feed_register
 gen_frames_register() runs continuous loop:
   1. Camera capture
   2. Face Detection + Head Pose Estimation (5 poses: Up, Down, Left, Right, Forward)
-  3. Anti-Spoofing check (must be REAL)
+  3. Anti-Spoofing check (must be REAL, score > 0.5)
   4. SuggestPoseCounter guides user through 5 poses × 50 frames each = 250 images
+     - Pose order enforced: LookUp → LookDown → LookLeft → LookRight → Forward
+     - Each pose must complete 50 frames before next pose
   5. Images saved to FacePay/static/Data/FaceNet/{user_id}/
-  6. On completion: saves 1 reference frame to FacePay/static/Data/ArcFace/{user_id}/temp.jpg
+  6. On completion (250 total): saves 1 reference frame to FacePay/static/Data/ArcFace/{user_id}/temp.jpg
+         │
+         ▼
+Flash "Thêm khuôn mặt thành công!" → redirect to /account
          │
          ▼
 Admin runs: python train.py
          │
          ▼
 train.py:
-  1. Loads all images from FaceNet directory
-  2. FaceNet forward pass → embeddings for all images
+  1. Loads all images from FaceNet directory (one subfolder per user)
+  2. FaceNet forward pass → embeddings for all images (batch size 8)
   3. Trains SVM (linear kernel, probability=True)
-  4. Saves (model, class_names) to FaceNet_Model.pkl
-  5. Copies to production Models/ directory
+  4. Saves (model, class_names) to FacePay/Models/temp/FaceNet_Model.pkl
+  5. Copies to production FacePay/Models/FaceNet_Model.pkl
 ```
 
 ### Model Loading and Initialization
@@ -146,21 +159,26 @@ At Flask app creation (`FacePay/__init__.py`):
 1. `create_app()` initializes Flask, SQLAlchemy, LoginManager
 2. Registers blueprints (views, users)
 3. At module import in `func.py` (triggered by views import):
-   - Loads SVM classifier from `FaceNet_Model.pkl`
-   - Creates TF1 session, loads FaceNet frozen graph (`FaceNet_Model.pb`)
-   - Gets input/embedding/phase tensors by name
+   - Loads SVM classifier from `FacePay/Models/FaceNet_Model.pkl`
+   - Creates TF1 session with GPU memory fraction (0.6)
+   - Loads FaceNet frozen graph (`FacePay/Models/FaceNet_Model.pb`)
+   - Gets input/embedding/phase tensors by name ("input:0", "embeddings:0", "phase_train:0")
    - Initializes ArcFace detector
-   - Initializes AntiSpoof ONNX session (CUDA if available)
-   - Initializes MediaPipe FaceMesh detector
-4. First request to `/` runs warm-up inference on a test image
+   - Initializes AntiSpoof ONNX session (CUDAExecutionProvider if available, fallback to CPU)
+   - Initializes MediaPipe FaceMesh detector (max 1 face, static_image_mode=True)
+4. First request to `/` runs warm-up inference on a test image (`FacePay/static/images/temp.jpg`)
 
 ### Key Configuration Parameters
 
-Located in `func.py`:
-- `threshold = 0.5` — Anti-spoofing decision boundary
+Located in `func.py` (module-level constants):
+- `threshold = 0.5` — Anti-spoofing decision boundary (score > 0.5 = real)
 - `probabilitiesFaceNet = 0.6` — SVM confidence threshold for recognition
 - `probabilitiesArcFace = 0.8` — ArcFace distance threshold (lower = stricter)
 - `ArcFaceActivate = False` — Toggle ArcFace second-factor verification
+
+Environment variables (`.env`):
+- `KEY` — Flask SECRET_KEY
+- `DB_NAME` — SQLite database filename (default: facepay.db)
 
 ---
 
@@ -176,55 +194,65 @@ Located in `func.py`:
 | Database | SQLite |
 | Video Stream | OpenCV (cv2.VideoCapture) + MJPEG streaming |
 | Head Pose Estimation | OpenCV solvePnP + RQDecomp3x3 |
+| Frontend | HTML/CSS/JS, Boxicons, FontAwesome, Swiper |
 
 ---
 
 ## Core Modules
 
 ### 1. Face Detection (`facetools/face_detection.py`)
-- Uses MediaPipe FaceMesh (max 1 face)
+- Uses MediaPipe FaceMesh (max 1 face, static_image_mode=True)
 - Extracts 468 landmarks
-- Head Pose Estimation: Calculates head rotation angles (LookUp, LookDown, LookLeft, LookRight, Forward) using cv2.solvePnP
-- Crops and aligns face with margin for recognition
+- Head Pose Estimation: Calculates head rotation angles using 6 key landmarks (indices 33, 263, 1, 61, 291, 199)
+  - Uses cv2.solvePnP with 3D model points and camera matrix
+  - Decomposes rotation matrix via cv2.RQDecomp3x3
+  - Classifies pose: LookUp, LookDown, LookLeft, LookRight, Forward (threshold: 12 degrees)
+- Crops and aligns face with margin (80px default) for recognition via `utils.extract_face`
 
 ### 2. Anti-Spoofing (`facetools/face_antispoofing.py`)
-- ONNX model: AntiSpoofing_bin_1.5_128.onnx
-- Input: 128x128 RGB (padding + resize keeping aspect ratio)
-- Output: 2 classes [Real, Fake] with softmax
-- Default threshold: 0.5
+- ONNX model: AntiSpoofing_bin_1.5_128.onnx (1.8 MB)
+- Input preprocessing: aspect-ratio-preserving resize to 128x128 with zero-padding, normalize to [0,1], CHW format
+- Output: 2 logits → softmax → [Real_score, Fake_score]
+- Label 0 = Real, Label 1 = Fake
+- Default threshold: 0.5 on Real_score
 
 ### 3. Face Recognition (`func.py`)
 **Two-step pipeline:**
 1. FaceNet (Embedding + SVM):
-   - FaceNet frozen graph (FaceNet_Model.pb) → 512-d embedding
+   - FaceNet frozen graph (FaceNet_Model.pb) → 512-d embedding (input 160x160, prewhitened)
    - SVM classifier (FaceNet_Model.pkl) → predicted class + probability
-   - FaceNet threshold: 0.6
+   - Threshold: 0.6 on SVM probability
 
-2. ArcFace Verification (Optional):
-   - Compares real-time embedding with reference image (ArcFace/{user}/temp.jpg)
-   - Distance threshold: 0.8
-   - Only enabled when ArcFaceActivate=True
+2. ArcFace Verification (Optional, controlled by ArcFaceActivate):
+   - Compares real-time embedding with reference image at `FacePay/static/Data/ArcFace/{user_id}/temp.jpg`
+   - Distance threshold: 0.8 (cosine distance)
+   - Only runs if FaceNet probability > 0.6 AND liveness score > threshold
 
 ### 4. Face Registration (`views.py:gen_frames_register`)
-- Requires user to perform 5 poses: LookUp, LookDown, LookLeft, LookRight, Forward
-- Each pose: 50 images → total 250 images/user for FaceNet training
-- Saves 1 reference image for ArcFace at ArcFace/{id}/temp.jpg
+- Requires user to perform 5 poses sequentially: LookUp, LookDown, LookLeft, LookRight, Forward
+- Each pose: 50 frames → total 250 images/user for FaceNet training
+- Anti-spoofing gate: only captures frames when liveness score > 0.5
+- Saves 1 reference image for ArcFace at `FacePay/static/Data/ArcFace/{user_id}/temp.jpg`
+- On completion, flashes success message and redirects to account page
 
 ### 5. Checkout Flow (`views.py`)
-1. User adds to cart → POST / with total-price, data-purchase
-2. Redirect /checkout → stream video from webcam
+1. User adds to cart → POST / with `total-price`, `data-purchase` (JSON string)
+2. Redirect /checkout → stream video from webcam via /video_feed
 3. Real-time: Anti-Spoofing + Face Recognition per frame
-4. If recognition succeeds & balance sufficient → deduct money, save PurchaseHistory
-5. Flash message with result
+4. On recognition success: global `recognize_id` set to user ID
+5. Home route detects `recognize_id` + `money` > 0 → processes payment
+6. Validates user exists, sufficient balance → deducts currency, saves PurchaseHistory
+7. Flash message with result, resets global state
 
 ---
 
 ## How to Run
 
 ### Requirements
-- Python 3.7+ (TensorFlow 1.x compatibility)
+- Python 3.7+ (TensorFlow 1.x compatibility via tf.compat.v1)
 - Webcam
 - GPU (recommended) for TensorFlow/ONNX Runtime CUDA
+- Windows (uses cv2.CAP_DSHOW); Linux/macOS may need adjustment
 
 ### Installation
 ```bash
@@ -243,14 +271,15 @@ scikit-learn
 arcface  # pip install arcface
 pyshine
 python-dotenv
+imutils
 ```
 
 ### Retrain FaceNet Classifier (when adding new users)
 ```bash
 python train.py
 ```
-- Reads images from FacePay/static/Data/FaceNet/{user_id}/
-- Outputs FacePay/Models/temp/FaceNet_Model.pkl → copies to FacePay/Models/FaceNet_Model.pkl
+- Reads images from `FacePay/static/Data/FaceNet/{user_id}/`
+- Outputs `FacePay/Models/temp/FaceNet_Model.pkl` → copies to `FacePay/Models/FaceNet_Model.pkl`
 
 ### Run Application
 ```bash
@@ -265,7 +294,7 @@ python app.py
 
 | Table | Description |
 |-------|-------------|
-| Users | id, name, birthday, gender, id_card, address, phone, email, password_hash, currency (default 1B) |
+| Users | id, name, birthday, gender, id_card, address, phone, email, password_hash, currency (default 1,000,000,000) |
 | PurchaseHistory | id, data (JSON cart), price, date, user_id |
 | SignInHistory | id, ip_address, date, user_id |
 | FaceData | id, data, date_update, user_id |
@@ -273,24 +302,14 @@ python app.py
 
 ---
 
-## Key Configuration (`FacePay/func.py`)
-
-```python
-# Thresholds
-threshold = 0.5           # Anti-spoofing threshold
-probabilitiesFaceNet = 0.6  # FaceNet SVM confidence
-probabilitiesArcFace = 0.8  # ArcFace distance threshold
-ArcFaceActivate = False     # Enable/disable ArcFace verification
-```
-
----
-
 ## Important Notes
 
-- This is a 2020 student project — code uses older patterns (TensorFlow 1.x style, legacy Flask patterns)
+- This is a 2020 student project — code uses older patterns (TensorFlow 1.x style via tf.compat.v1, legacy Flask patterns, global state in views)
 - Model weights (.pb, .onnx, .pkl) are committed in the repo
-- Originally developed on Windows (uses cv2.CAP_DSHOW), may need adjustments for Linux/macOS
-- Demo/research purpose only — not production-ready
+- Originally developed on Windows (uses `cv2.CAP_DSHOW`), may need adjustments for Linux/macOS (remove CAP_DSHOW flag)
+- Global variables in views.py (`money`, `data_cart`, `recognize_id`, `current_id`) are not thread-safe
+- Bare `except: pass` blocks swallow exceptions — debugging may be difficult
+- **Demo/research purpose only** — not production-ready
 
 ---
 
